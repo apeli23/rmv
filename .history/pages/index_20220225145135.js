@@ -16,7 +16,7 @@ export default function Home() {
     video2 = document.createElement('video');
     video2.setAttribute("width", 800);
     video2.setAttribute("height", 450);
-    video2.src = "videos/background.mp4";
+    video2.src = "https://res.cloudinary.com/dogjmmett/video/upload/v1644764315/background_wjdrt7.mp4";
     video2.setAttribute("ref", videoRef.current);
     video2.muted = true;
     video2.autoplay = true;

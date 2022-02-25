@@ -121,7 +121,7 @@ export default function Home() {
         </div>
         <div className="row">
           <div className="column">
-            <video className="video" crossOrigin="Anonymous" src='https://res.cloudinary.com/dogjmmett/video/upload/v1644847286/foreground_z4ga7a.mp4' id='video' width='800' height='450' autoPlay muted loop type="video/mp4" />
+            <video className="video" crossOrigin="Anonymous" src='videos/foreground.mp4' id='video' width='800' height='450' autoPlay muted loop type="video/mp4" />
           </div>
           <div className="column">
             {link ? <a href={link}>LINK : {link}</a> : <h3>your link will show here...</h3>}
