@@ -1,68 +1,104 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from "react";
+import * as bodyPix from "@tensorflow-models/body-pix";
+import * as tf from "@tensorflow/tfjs";
 
-
+const modelConfig = {
+  architecture: "MobileNetV1",
+  outputStride: 16,
+  multiplier: 1,
+  quantBytes: 4,
+};
 export default function Home() {
-  let video, canvas, outputContext, temporaryCanvas, temporaryContext, video2;
-  const canvasRef = useRef();
-  const videoRef = useRef(undefined);
-  const [computed, setComputed] = useState(false);
-  const [link, setLink] = useState('');
+  let outputContext, inputVideo, temporaryContext, temporaryCanvas, outputCanvas;
+
+  const processedVid = useRef();
+  const rawVideo = useRef();
+  const startBtn = useRef();
+  const closeBtn = useRef();
+  const videoDownloadRef = useRef();
+  const [model, setModel] = useState(null);
+  const [link, setLink] = useState("");
   const [blob, setBlob] = useState();
 
+  const segmentationConfig = {
+    internalResolution: "full",
+    segmentationThreshold: 0.1,
+    scoreThreshold: 0.4,
+  };
 
   useEffect(() => {
-    video = document.getElementById('video');
-
-    video2 = document.createElement('video');
-    video2.setAttribute("width", 800);
-    video2.setAttribute("height", 450);
-    video2.src = "videos/background.mp4";
-    video2.setAttribute("ref", videoRef.current);
-    video2.muted = true;
-    video2.autoplay = true;
-    video2.play();
-    video2.loop = true;
-
-    canvas = document.getElementById('output-canvas');
-    outputContext = canvas.getContext('2d');
-
-    temporaryCanvas = document.createElement('canvas');
-    temporaryCanvas.setAttribute('width', 800);
-    temporaryCanvas.setAttribute('height', 450);
-    temporaryContext = temporaryCanvas.getContext('2d');
-    video.addEventListener("play", computeFrame)
+    if (model) return;
+    bodyPix.load(modelConfig).then((m) => {
+      setModel(m);
+    });
   }, []);
 
-  async function computeFrame() {
+  const startVideo = async () => {
+    console.log("playing video...")
+    rawVideo.current.play()
+    inputVideo = rawVideo.current;
+    await rawVideo.current.play().then(() => {
+      transform()
+      console.log("object")
+    })
+  }
 
-    if (video.paused || video.ended) {
-      return;
-    }
+  let transform = () => {
+    // let ;
+    outputCanvas = processedVid.current;
+    outputContext = outputCanvas.getContext("2d");
 
+    temporaryCanvas = document.createElement("canvas");
+    temporaryCanvas.setAttribute("width", 800);
+    temporaryCanvas.setAttribute("height", 450);
 
-    temporaryContext.drawImage(video, 0, 0, video.width, video.height);
-    let frame = temporaryContext.getImageData(0, 0, video.width, video.height);
+    temporaryContext = temporaryCanvas.getContext("2d");
 
+    computeFrame();
+  };
 
-    temporaryContext.drawImage(video2, 0, 0, video2.width, video2.height);
-    let frame2 = temporaryContext.getImageData(0, 0, video2.width, video2.height);
+  let computeFrame = () => {
+    // console.log(inputVideo.videoWidth)
+    temporaryContext.drawImage(
+      inputVideo,
+      0,
+      0,
+      inputVideo.videoWidth,
+      inputVideo.videoHeight
+    );
 
-    for (let i = 0; i < frame.data.length / 4; i++) {
-      let r = frame.data[i * 4 + 0];
-      let g = frame.data[i * 4 + 1];
-      let b = frame.data[i * 4 + 2];
+    let frame = temporaryContext.getImageData(
+      0,
+      0,
+      inputVideo.videoWidth,
+      inputVideo.videoHeight
+    );
 
-      if (r >= 0 && r < 55 && g > 170 && g < 180 && b >= 0 && b < 8) {
-        frame.data[i * 4 + 0] = frame2.data[i * 4 + 0];
-        frame.data[i * 4 + 1] = frame2.data[i * 4 + 1];
-        frame.data[i * 4 + 2] = frame2.data[i * 4 + 2];
+    model.segmentPerson(frame, segmentationConfig).then((segmentation) => {
+      let output_img = outputContext.getImageData(
+        0,
+        0,
+        inputVideo.videoWidth,
+        inputVideo.videoHeight
+      );
+
+      for (let x = 0; x < inputVideo.videoWidth; x++) {
+        for (let y = 0; y < inputVideo.videoHeight; y++) {
+          let n = x + y * inputVideo.videoWidth;
+          if (segmentation.data[n] == 0) {
+            output_img.data[n * 4] = frame.data[n * 4]; // R
+            output_img.data[n * 4 + 1] = frame.data[n * 4 + 1]; // G
+            output_img.data[n * 4 + 2] = frame.data[n * 4 + 2]; // B
+            output_img.data[n * 4 + 3] = frame.data[n * 4 + 3]; // A
+          }
+        }
       }
-    }
-    outputContext.putImageData(frame, 0, 0)
-    setTimeout(computeFrame, 0);
-
+      // console.log(segmentation);
+      outputContext.putImageData(output_img, 0, 0);
+      setTimeout(computeFrame, 0);
+    });
     const chunks = [];
-    const cnv = canvasRef.current;
+    const cnv = processedVid.current;
     const stream = cnv.captureStream();
     const rec = new MediaRecorder(stream);
     rec.ondataavailable = e => chunks.push(e.data);
@@ -71,8 +107,13 @@ export default function Home() {
     setTimeout(() => rec.stop(), 10000);
   }
 
+  const stopVideo = () => {
+    console.log("Hanging up the call ...");
+    console.log(blob)
 
+  };
   function readFile(file) {
+    console.log("readFile()=>", file);
     return new Promise(function (resolve, reject) {
       let fr = new FileReader();
 
@@ -87,8 +128,9 @@ export default function Home() {
       fr.readAsDataURL(file);
     });
   }
-  async function uploadHandler() {
-    console.log(blob)
+
+  const uploadVideo = async (base64) => {
+    console.log("uploading to backend...");
     await readFile(blob).then((encoded_file) => {
       try {
         fetch('/api/upload', {
@@ -98,38 +140,56 @@ export default function Home() {
         })
           .then((response) => response.json())
           .then((data) => {
-            setComputed(true);
             setLink(data.data);
           });
       } catch (error) {
         console.error(error);
       }
     });
-  }
+  };
+
   return (
     <>
-      <div className='container'>
-        <div className='header'>
-          <h1 className='heading'>
-            <span
-              onClick={computeFrame}
-              className="heading-primary-main"
-            >
-              <b>Merge videos with nextjs</b>
-            </span>
+      <div className="container">
+        <div className="header">
+          <h1 className="heading">
+            Remove character from video
           </h1>
         </div>
         <div className="row">
           <div className="column">
-            <video className="video" crossOrigin="Anonymous" src='https://res.cloudinary.com/dogjmmett/video/upload/v1644847286/foreground_z4ga7a.mp4' id='video' width='800' height='450' autoPlay muted loop type="video/mp4" />
+            <video
+              id="video"
+              width="800px"
+              src="sample.mp4"
+              autoPlay
+              ref={rawVideo}
+              loop
+              controls
+            />
           </div>
           <div className="column">
-            {link ? <a href={link}>LINK : {link}</a> : <h3>your link will show here...</h3>}
-            <canvas crossOrigin="Anonymous" className="canvas" ref={canvasRef} id="output-canvas" width="800" height="450" ></canvas><br />
-            <a href="#" className="btn btn-white btn-animated" onClick={uploadHandler}>Get video Link</a>
+            {link ?
+              <h4><a href={link}>Get Copy</a></h4>
+              :
+              <img id="loading" width="50" height="30" src="https://mir-s3-cdn-cf.behance.net/project_modules/disp/f1055231234507.564a1d234bfb6.gif" />
+            }
+            <br />
+            <canvas className="display" width={800} height={450} ref={processedVid}></canvas>
           </div>
+        </div>
+        <div className="buttons">
+          <button className="button" ref={startBtn} onClick={startVideo}>
+            Process Video
+          </button>
+
+          <button className="button" onClick={uploadVideo}>
+            <a ref={videoDownloadRef}>
+              Stop and upload
+            </a>
+          </button>
         </div>
       </div>
     </>
   )
-};
+}
