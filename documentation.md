@@ -297,7 +297,7 @@ return (
               autoPlay
               ref={rawVideo}
               loop
-              controls
+              muted
             />
           </div>
           <div className="column">
