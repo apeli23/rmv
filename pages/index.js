@@ -132,20 +132,19 @@ export default function Home() {
   const uploadVideo = async (base64) => {
     console.log("uploading to backend...");
     await readFile(blob).then((encoded_file) => {
-      console.log(encoded_file)
-    //   try {
-    //     fetch('/api/upload', {
-    //       method: 'POST',
-    //       body: JSON.stringify({ data: encoded_file }),
-    //       headers: { 'Content-Type': 'application/json' },
-    //     })
-    //       .then((response) => response.json())
-    //       .then((data) => {
-    //         setLink(data.data);
-    //       });
-    //   } catch (error) {
-    //     console.error(error);
-      // }
+      try {
+        fetch('/api/upload', {
+          method: 'POST',
+          body: JSON.stringify({ data: encoded_file }),
+          headers: { 'Content-Type': 'application/json' },
+        })
+          .then((response) => response.json())
+          .then((data) => {
+            setLink(data.data);
+          });
+      } catch (error) {
+        console.error(error);
+      }
     });
   };
 
@@ -184,11 +183,13 @@ export default function Home() {
             Process Video
           </button>
 
-          <button className="button" onClick={uploadVideo}>
-            <a ref={videoDownloadRef}>
-              Stop and upload
-            </a>
-          </button>
+          {blob &&
+            <button className="button" onClick={uploadVideo}>
+              <a ref={videoDownloadRef}>
+                Stop and upload
+              </a>
+            </button>
+          }
         </div>
       </div>
     </>
